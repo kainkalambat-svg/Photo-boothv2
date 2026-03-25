@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Photobooth</title>
+
+<style>
+body{
+  margin:0;
+  font-family:Arial;
+  background:linear-gradient(135deg,#ffd6e7,#ffeaf4);
+  text-align:center;
+}
+
+/* START SCREEN */
+#startScreen{
+  position:fixed;
+  inset:0;
+  background:linear-gradient(135deg,#ffc1da,#ffd6e7);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  align-items:center;
+  z-index:10;
+}
+
+.startBtn{
+  padding:14px 28px;
+  font-size:18px;
+  border:none;
+  border-radius:30px;
+  background:#ff4da6;
+  color:white;
+  box-shadow:0 6px 15px rgba(0,0,0,.15);
+}
+
+/* CAMERA */
+video{
+  width:92%;
+  max-width:380px;
+  aspect-ratio:3/4;
+  object-fit:cover;
+  border-radius:20px;
+  border:6px solid white;
+  transform:scaleX(-1);
+  background:black;
+  margin-top:10px;
+  box-shadow:0 5px 15px rgba(0,0,0,.15);
+}
+
+/* PANEL */
+.panel{
+  background:white;
+  margin:10px auto;
+  padding:12px;
+  border-radius:15px;
+  max-width:380px;
+  box-shadow:0 4px 10px rgba(0,0,0,.1);
+}
+
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+}
+
+select{
+  padding:10px;
+  border-radius:10px;
+  border:1px solid #eee;
+}
+
+/* BUTTONS */
+.btns{
+  display:flex;
+  gap:10px;
+  margin-top:10px;
+}
+
+.btns button{
+  flex:1;
+}
+
+/* NORMAL BUTTON STYLE */
+button{
+  padding:12px;
+  border:none;
+  border-radius:12px;
+  background:#ff4da6;
+  color:white;
+  font-size:15px;
+}
+
+button:active{
+  transform:scale(.95);
+}
+
+/* COUNTDOWN */
+#count{
+  font-size:55px;
+  color:#ff4da6;
+  height:60px;
+  font-weight:bold;
+}
+
+/* RESULTS */
+#result img{
+  width:130px;
+  background:white;
+  padding:6px;
+  border-radius:12px;
+  margin:6px;
+  box-shadow:0 4px 10px rgba(0,0,0,.15);
+}
+</style>
+</head>
+
+<body>
+
+<!-- START SCREEN -->
+<div id="startScreen">
+  <h1>📸 Photobooth</h1>
+  <button class="startBtn" onclick="enter()">START</button>
+</div>
+
+<h2>📸 Photobooth</h2>
+
+<video id="video" autoplay playsinline></video>
+<div id="count"></div>
+
+<div class="panel">
+<div class="grid">
+
+<select id="shots">
+<option value="3">3 Shots</option>
+<option value="4">4 Shots</option>
+<option value="6">6 Shots</option>
+</select>
+
+<select id="filter">
+<option value="none">Normal</option>
+<option value="grayscale(1)">B&W</option>
+<option value="sepia(1)">Vintage</option>
+<option value="contrast(1.4)">Bright</option>
+</select>
+
+<select id="frame">
+<option value="white">White Frame</option>
+<option value="pink">Pink Frame</option>
+<option value="black">Black Frame</option>
+</select>
+
+<select id="sticker">
+<option value="">No Sticker</option>
+<option value="❤️">Heart</option>
+<option value="🌸">Flower</option>
+<option value="⭐">Star</option>
+</select>
+
+</div>
+
+<div class="btns">
+<button onclick="cam()">Camera</button>
+<button onclick="start()">Start</button>
+<button onclick="download()">Download</button>
+</div>
+</div>
+
+<div id="result"></div>
+
+<script>
+let video=document.getElementById("video");
+let countEl=document.getElementById("count");
+let result=document.getElementById("result");
+
+let photos=[];
+let finalCanvas=null;
+let stream=null;
+
+/* ENTER */
+function enter(){
+ document.getElementById("startScreen").style.display="none";
+}
+
+/* CAMERA - Pure JS, permission prompt automatic sa browser */
+async function cam(){
+ try{
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    alert("Your browser does not support camera access.");
+    return;
+  }
+
+  stream = await navigator.mediaDevices.getUserMedia({
+    video:{facingMode:"user"},
+    audio:false
+  });
+
+  video.srcObject = stream;
+
+ }catch(e){
+  console.error(e);
+  alert("Camera permission denied or not available. Please allow access in your browser.");
+ }
+}
+
+/* SESSION */
+async function start(){
+ if(!stream){
+   alert("Open camera first");
+   return;
+ }
+
+ photos=[];
+ let total=document.getElementById("shots").value;
+
+ for(let i=0;i<total;i++){
+   await cd(3);
+   snap();
+ }
+
+ build();
+}
+
+/* COUNTDOWN */
+function cd(n){
+ return new Promise(r=>{
+  countEl.innerText=n;
+  let i=setInterval(()=>{
+   n--;
+   if(n==0){
+    clearInterval(i);
+    countEl.innerText="📸";
+    setTimeout(()=>{countEl.innerText="";r();},600);
+   }else countEl.innerText=n;
+  },1000);
+ });
+}
+
+/* SNAP */
+function snap(){
+ let c=document.createElement("canvas");
+ c.width=video.videoWidth;
+ c.height=video.videoHeight;
+ let x=c.getContext("2d");
+
+ x.filter=document.getElementById("filter").value;
+ x.scale(-1,1);
+ x.drawImage(video,-c.width,0);
+
+ let sticker=document.getElementById("sticker").value;
+ if(sticker){
+  x.font="40px Arial";
+  x.fillText(sticker,20,50);
+ }
+
+ photos.push(c);
+}
+
+/* BUILD */
+function build(){
+ let frameColor=document.getElementById("frame").value;
+
+ let w=220;
+ let h=240;
+
+ finalCanvas=document.createElement("canvas");
+ let ctx=finalCanvas.getContext("2d");
+
+ finalCanvas.width=w;
+ finalCanvas.height=photos.length*h+20;
+
+ ctx.fillStyle=frameColor;
+ ctx.fillRect(0,0,w,finalCanvas.height);
+
+ photos.forEach((p,i)=>{
+  ctx.drawImage(p,10,i*h+10,w-20,h-20);
+
+  ctx.fillStyle="white";
+  ctx.font="14px Arial";
+  ctx.fillText(new Date().toLocaleDateString(),15,i*h+h-10);
+ });
+
+ let img=new Image();
+ img.src=finalCanvas.toDataURL();
+ result.prepend(img);
+}
+
+/* DOWNLOAD */
+function download(){
+ if(!finalCanvas){
+   alert("Take photos first");
+   return;
+ }
+
+ let a=document.createElement("a");
+ a.download="photobooth.png";
+ a.href=finalCanvas.toDataURL();
+ a.click();
+}
+</script>
+
+</body>
+</html>
